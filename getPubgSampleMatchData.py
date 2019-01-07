@@ -8,10 +8,13 @@ class getPlayersPositonInfo:
 
     def getAllPlayersAllInfo(self):
         charaNameIndex = []
+        charaIdIndex = []
         charaPositionXIndex = []
         charaPositionYIndex = []
         charaPositionZIndex = []
         charaRankIndex = []
+        elapsedTimeIndex = []
+
         for i in range(len(self.LogPlayerPosition)):
             if not(self.LogPlayerPosition[i].elapsed_time == 0):
                 if self.LogPlayerPosition[i].character.name in charaNameIndex:
@@ -19,14 +22,59 @@ class getPlayersPositonInfo:
                     charaPositionYIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].character.location.y)
                     charaPositionZIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].character.location.z)
                     charaRankIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)] = self.LogPlayerPosition[i].character.ranking
+                    elapsedTimeIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].elapsed_time)
                 else:
                     charaNameIndex.append(self.LogPlayerPosition[i].character.name)
                     charaPositionXIndex.append([self.LogPlayerPosition[i].character.location.x])
                     charaPositionYIndex.append([self.LogPlayerPosition[i].character.location.y])
                     charaPositionZIndex.append([self.LogPlayerPosition[i].character.location.z])
                     charaRankIndex.append(self.LogPlayerPosition[i].character.ranking)
+                    elapsedTimeIndex.append([self.LogPlayerPosition[i].elapsed_time])
+                    charaIdIndex.append(self.LogPlayerPosition[i].character.account_id)
         
-        return charaNameIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,charaRankIndex
+        return charaNameIndex,charaIdIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,charaRankIndex,elapsedTimeIndex
+
+    def getPlayerLandingPosition(self,charaIdIndex,logParachuteLanding):
+        lp = logParachuteLanding
+        playerLandingPositionIndex = [[0 for i in range(3)]for j in range(len(charaIdIndex))]
+
+        for i in range(len(lp)):
+            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][0] = lp[i].character.location.x
+            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][1] = lp[i].character.location.y
+            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][2] = lp[i].character.location.z
+        
+        return playerLandingPositionIndex
+
+    def getPlayerKillDeadPosition(self,charaIdIndex,charaRankIndex,logPlayerKill):
+        lp = logPlayerKill
+        playerDeadPositionIndex = [[0 for i in range(3)]for j in range(len(charaIdIndex))]
+        playerKillPositionIndex = [[0 for i in range(3)]for j in range(len(charaIdIndex))]
+        playerKillCountIndex = [0 for i in range(len(charaIdIndex))]
+        killSum = 0
+
+        for i in range(len(lp)):
+            playerDeadPositionIndex[charaIdIndex.index(lp[i].victim.account_id)][0] = lp[i].victim.location.x
+            playerDeadPositionIndex[charaIdIndex.index(lp[i].victim.account_id)][1] = lp[i].victim.location.y
+            playerDeadPositionIndex[charaIdIndex.index(lp[i].victim.account_id)][2] = lp[i].victim.location.z
+            playerKillPositionIndex[charaIdIndex.index(lp[i].victim.account_id)][0] = lp[i].killer.location.x
+            playerKillPositionIndex[charaIdIndex.index(lp[i].victim.account_id)][1] = lp[i].killer.location.y
+            playerKillPositionIndex[charaIdIndex.index(lp[i].victim.account_id)][2] = lp[i].killer.location.z
+            playerKillCountIndex[charaIdIndex.index(lp[i].victim.account_id)] = lp[i].victim_game_result.stats.kill_count
+            killSum = killSum + lp[i].victim_game_result.stats.kill_count
+        
+        if 1 in charaRankIndex:
+            playerKillCountIndex[charaRankIndex.index(1)] = len(lp) - killSum
+        
+        return playerDeadPositionIndex,playerKillPositionIndex,playerKillCountIndex
+        lp = logParachuteLanding
+        playerLandingPositionIndex = [[0 for i in range(3)]for j in range(len(charaIdIndex))]
+
+        for i in range(len(lp)):
+            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][0] = lp[i].character.location.x
+            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][1] = lp[i].character.location.y
+            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][2] = lp[i].character.location.z
+        
+        return playerLandingPositionIndex
 
     def plotAllPlayersAllPosition(self):
         for i in range(len(self.LogPlayerPosition)):
@@ -65,6 +113,30 @@ class getPlayersPositonInfo:
         cv2.line(map,(0,int(b)),(h,int((a*h+b))),(255,0,0),5)
         return self.map
 
+class getSafetyZoneInfo:
+    def __init__(self,LogGameStatePeriodic,):
+        self.lgsp = LogGameStatePeriodic
+    
+    def getSafetyAndPoisonGasPosInfo(self):
+        safetyZoneElapsedTime = []
+        safetyZonePositionX = []
+        safetyZonePositionY = []
+        poisonGasPositionX = []
+        poisonGasPositionY = []
+        safetyZoneRadius = []
+        poisonGasRadius = []
+
+        for i in range(len(self.lgsp)):
+            safetyZoneElapsedTime.append(self.lgsp[i].game_state.elapsed_time)
+            safetyZonePositionX.append(self.lgsp[i].game_state.safetyZonePos.x)
+            safetyZonePositionY.append(self.lgsp[i].game_state.safetyZonePos.y)
+            poisonGasPositionX.append(self.lgsp[i].game_state.poisonGasWarningPos.x)
+            poisonGasPositionX.append(self.lgsp[i].game_state.poisonGasWarningPos.y)
+            safetyZoneRadius.append(self.lgsp[i].game_state.safety_zone_radius)
+            poisonGasRadius.append(self.lgsp[i].game_state.poison_gas_warning_radius)
+        
+        return safetyZoneElapsedTime,safetyZonePositionX,safetyZonePositionY,poisonGasPositionX,poisonGasPositionY,safetyZoneRadius,poisonGasRadius
+
 def main():
     api = PUBG('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJiMGVhNmM0MC1kNGQzLTAxMzYtYmQ3ZC03MzkyZGYzNjZhZTAiLCJpc3MiOiJnYW1lbG9ja2VyIiwiaWF0IjoxNTQzMzY1NDQxLCJwdWIiOiJibHVlaG9sZSIsInRpdGxlIjoicHViZyIsImFwcCI6InlvdXJpNDAxIn0.Z9i2twdF8yDkSPQ2DVjy1jbr7E5PbtiiB9n3UgfyKCg', Shard.PC_NA)
     sample = api.samples().get()
@@ -77,6 +149,7 @@ def main():
     if not(log_match_start[0].map_name == "Range_Main"):
         map = getMapImg(log_match_start[0].map_name)
         player = getPlayersPositonInfo(map,log_player_position)
+        print(match.map_name)
     else: print("this match is Range_Main")
 
 def getMapImg(mapName):
@@ -86,7 +159,29 @@ def getMapImg(mapName):
         map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Miramar_Main_High_Res.jpg')
     elif mapName == "Savage_Main":
         map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Sanhok_Main_No_Text_Med_Res.jpg')
+    elif mapName == 'DihorOtok_Main':
+        map = cv2.imread(r'C:\Users\youri\Documents\api-assets\Assets\Maps\Vikendi_Main_High_Res.jpg')
     return map
+
+def makeWriteIndex(charaNameIndex,charaIdIndex,charaRankIndex,playerLandingPositionIndex,elapsedTimeIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,playerDeadPositionIndex,killPlayerPositionIndex,playerKillCountIndex,matchId):
+    writeIndex = []
+    for i in range(len(charaNameIndex)):
+        charaPositionXStr = changeListToStr(charaPositionXIndex[i])
+        charaPositionYStr = changeListToStr(charaPositionYIndex[i])
+        charaPositionZStr = changeListToStr(charaPositionZIndex[i])
+        playerLandingPositionStr = changeListToStr(playerLandingPositionIndex[i])
+        elapsedTimeStr = changeListToStr(elapsedTimeIndex[i])
+        playerDeadPositionStr = changeListToStr(playerDeadPositionIndex[i])
+        killPlayerPositionStr = changeListToStr(killPlayerPositionIndex[i])
+
+        writeIndex.append([charaNameIndex[i],charaIdIndex[i],charaRankIndex[i],playerLandingPositionStr,elapsedTimeStr,charaPositionXStr,charaPositionYStr,charaPositionZStr,playerDeadPositionStr,killPlayerPositionStr,playerKillCountIndex[i],matchId])
+    return writeIndex
+
+def changeListToStr(index):
+    index = str(index)
+    index = index.strip('[]')
+    index = index.replace(' ','')
+    return index
 
 if __name__ == '__main__':
     main()

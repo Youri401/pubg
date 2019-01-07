@@ -14,7 +14,7 @@ def main():
     ppe = telemetry.events_from_type('LogPlayerPosition')
     for i in range(len(ppe)):
         if ppe[i].character.name == "youri401":
-            cv2.circle(map,(int(ppe[i].character.location.x/100*h/8160),int(ppe[i].character.location.y/100*w/8160)),20,(0,0,252), -1)
+            cv2.circle(map,(int(ppe[i].character.location.x/100),int(ppe[i].character.location.y/100)),20,(0,0,252), -1)
             #print(str(ppe[i].elapsed_time)+":("+str(ppe[i].character.location.x)+","+str(ppe[i].character.location.y)+","+str(ppe[i].character.location.z)+")")
     cv2.imwrite("output2.png", map)
 
