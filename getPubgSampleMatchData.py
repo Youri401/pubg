@@ -1,41 +1,39 @@
 from pubg_python import PUBG, Shard
 import cv2
+import csv
 
 class getPlayersPositonInfo:
-    def __init__(self,map,LogPlayerPosition):
+    def __init__(self,map,telemetry):
         self.map = map
-        self.LogPlayerPosition = LogPlayerPosition
+        self.LogPlayerPosition = telemetry.events_from_type('LogPlayerPosition')
+        self.telemetry = telemetry
 
     def getAllPlayersAllInfo(self):
+        lo = self.telemetry.events_from_type('LogPlayerCreate')
         charaNameIndex = []
         charaIdIndex = []
-        charaPositionXIndex = []
-        charaPositionYIndex = []
-        charaPositionZIndex = []
-        charaRankIndex = []
-        elapsedTimeIndex = []
+        charaPositionXIndex = [[] for i in range(len(lo))]
+        charaPositionYIndex = [[] for i in range(len(lo))]
+        charaPositionZIndex = [[] for i in range(len(lo))]
+        charaRankIndex = [[] for i in range(len(lo))]
+        elapsedTimeIndex = [[] for i in range(len(lo))]
+
+        for i in range(len(lo)):
+            charaNameIndex.append(lo[i].character.name)
+            charaIdIndex.append(lo[i].character.account_id)
 
         for i in range(len(self.LogPlayerPosition)):
             if not(self.LogPlayerPosition[i].elapsed_time == 0):
-                if self.LogPlayerPosition[i].character.name in charaNameIndex:
-                    charaPositionXIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].character.location.x)
-                    charaPositionYIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].character.location.y)
-                    charaPositionZIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].character.location.z)
-                    charaRankIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)] = self.LogPlayerPosition[i].character.ranking
-                    elapsedTimeIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].elapsed_time)
-                else:
-                    charaNameIndex.append(self.LogPlayerPosition[i].character.name)
-                    charaPositionXIndex.append([self.LogPlayerPosition[i].character.location.x])
-                    charaPositionYIndex.append([self.LogPlayerPosition[i].character.location.y])
-                    charaPositionZIndex.append([self.LogPlayerPosition[i].character.location.z])
-                    charaRankIndex.append(self.LogPlayerPosition[i].character.ranking)
-                    elapsedTimeIndex.append([self.LogPlayerPosition[i].elapsed_time])
-                    charaIdIndex.append(self.LogPlayerPosition[i].character.account_id)
+                charaPositionXIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].character.location.x)
+                charaPositionYIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].character.location.y)
+                charaPositionZIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].character.location.z)
+                charaRankIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)] = self.LogPlayerPosition[i].character.ranking
+                elapsedTimeIndex[charaNameIndex.index(self.LogPlayerPosition[i].character.name)].append(self.LogPlayerPosition[i].elapsed_time)
         
         return charaNameIndex,charaIdIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,charaRankIndex,elapsedTimeIndex
 
-    def getPlayerLandingPosition(self,charaIdIndex,logParachuteLanding):
-        lp = logParachuteLanding
+    def getPlayerLandingPosition(self,charaIdIndex):
+        lp = self.telemetry.events_from_type('LogParachuteLanding')
         playerLandingPositionIndex = [[0 for i in range(3)]for j in range(len(charaIdIndex))]
 
         for i in range(len(lp)):
@@ -45,8 +43,8 @@ class getPlayersPositonInfo:
         
         return playerLandingPositionIndex
 
-    def getPlayerKillDeadPosition(self,charaIdIndex,charaRankIndex,logPlayerKill):
-        lp = logPlayerKill
+    def getPlayerKillDeadPosition(self,charaIdIndex,charaRankIndex):
+        lp = self.telemetry.events_from_type('LogPlayerKill')
         playerDeadPositionIndex = [[0 for i in range(3)]for j in range(len(charaIdIndex))]
         playerKillPositionIndex = [[0 for i in range(3)]for j in range(len(charaIdIndex))]
         playerKillCountIndex = [0 for i in range(len(charaIdIndex))]
@@ -94,31 +92,13 @@ class getPlayersPositonInfo:
                     charaIndex.append(self.LogPlayerPosition[i].character.account_id)
         return self.map
 
-    def plotAirPlaneRoot(self):
-        airLineIndexPosFirst =[]
-        airLineIndexPosEnd =[]
-        count = 0
-        h,w,c = self.map.shape
-        for i in range(len(self.LogPlayerPosition)):
-            if not(self.LogPlayerPosition[i].elapsed_time == 0) and self.LogPlayerPosition[i].character.location.z >= 150088 and self.LogPlayerPosition[i].character.location.y > 0:
-                if count == 0:
-                    airLineIndexPosFirst.append(self.LogPlayerPosition[i].character.location.x/100)
-                    airLineIndexPosFirst.append(self.LogPlayerPosition[i].character.location.y/100)
-                    count = i
-
-        airLineIndexPosEnd.append(self.LogPlayerPosition[count].character.location.x/100)
-        airLineIndexPosEnd.append(self.LogPlayerPosition[count].character.location.y/100)
-        a = (airLineIndexPosFirst[1]-airLineIndexPosEnd[1])/(airLineIndexPosFirst[0]-airLineIndexPosEnd[0])
-        b = airLineIndexPosFirst[1] - a*airLineIndexPosFirst[0]
-        cv2.line(map,(0,int(b)),(h,int((a*h+b))),(255,0,0),5)
-        return self.map
-
-class getSafetyZoneInfo:
-    def __init__(self,LogGameStatePeriodic,):
-        self.lgsp = LogGameStatePeriodic
+class getMatchInfo:
+    def __init__(self,telemetry):
+        self.lgsp = telemetry.events_from_type('LogGameStatePeriodic')
+        self.LogPlayerPosition = telemetry.events_from_type('LogPlayerPosition')
     
     def getSafetyAndPoisonGasPosInfo(self):
-        safetyZoneElapsedTime = []
+        zoneElapsedTime = []
         safetyZonePositionX = []
         safetyZonePositionY = []
         poisonGasPositionX = []
@@ -127,30 +107,189 @@ class getSafetyZoneInfo:
         poisonGasRadius = []
 
         for i in range(len(self.lgsp)):
-            safetyZoneElapsedTime.append(self.lgsp[i].game_state.elapsed_time)
+            zoneElapsedTime.append(self.lgsp[i].game_state.elapsed_time)
             safetyZonePositionX.append(self.lgsp[i].game_state.safetyZonePos.x)
             safetyZonePositionY.append(self.lgsp[i].game_state.safetyZonePos.y)
             poisonGasPositionX.append(self.lgsp[i].game_state.poisonGasWarningPos.x)
-            poisonGasPositionX.append(self.lgsp[i].game_state.poisonGasWarningPos.y)
+            poisonGasPositionY.append(self.lgsp[i].game_state.poisonGasWarningPos.y)
             safetyZoneRadius.append(self.lgsp[i].game_state.safety_zone_radius)
             poisonGasRadius.append(self.lgsp[i].game_state.poison_gas_warning_radius)
         
-        return safetyZoneElapsedTime,safetyZonePositionX,safetyZonePositionY,poisonGasPositionX,poisonGasPositionY,safetyZoneRadius,poisonGasRadius
+        return zoneElapsedTime,safetyZonePositionX,safetyZonePositionY,poisonGasPositionX,poisonGasPositionY,safetyZoneRadius,poisonGasRadius
+
+    def getAirPlaneInfo(self,map):
+        flagCount = 0
+        tempIndex = []
+        airLineIndexPosFirst =[]
+        airLineIndexPosEnd =[]
+        airLineFirstPosIndex = []
+        airLineEndPosIndex = []
+        
+        count = 0
+        h,w,c = map.shape
+
+        for i in range(len(self.LogPlayerPosition)):
+            if not(self.LogPlayerPosition[i].elapsed_time == 0) and self.LogPlayerPosition[i].character.location.z >= 150088:
+                if count == 0:
+                    airLineIndexPosFirst.append(self.LogPlayerPosition[i].character.location.x/100)
+                    airLineIndexPosFirst.append(self.LogPlayerPosition[i].character.location.y/100)
+                count = i
+
+        airLineIndexPosEnd.append(self.LogPlayerPosition[count].character.location.x/100)
+        airLineIndexPosEnd.append(self.LogPlayerPosition[count].character.location.y/100)
+        a = (airLineIndexPosFirst[1]-airLineIndexPosEnd[1])/(airLineIndexPosFirst[0]-airLineIndexPosEnd[0])
+        b = airLineIndexPosFirst[1] - a*airLineIndexPosFirst[0]
+
+        airLineAlpha = a
+        airLineBeta = b
+        #airLineFirstPositionX0Index = [0,b]
+        #airLineEndPositionXHIndex = [h,int(a*h+b)]
+
+        if int(b) >= 0 and int(b) <= h and not(flagCount == 2):
+            tempIndex.append(0)
+            tempIndex.append(int(int(b)))
+            flagCount += 1
+        
+        if int(-1*(b/a)) >= 0 and int(-1*(b/a)) <= w and not(flagCount == 2):
+            tempIndex.append(int(-1*(b/a)))
+            tempIndex.append(0)
+            flagCount += 1
+        
+        if int(a*h+b) >= 0 and int(a*h+b) <= h and not(flagCount == 2):
+            tempIndex.append(w)
+            tempIndex.append(int(a*h+b))
+            flagCount += 1
+        
+        if int((h-b)/a) >= 0 and int((h-b)/a) <= w and not(flagCount == 2):
+            tempIndex.append(int((h-b)/a))
+            tempIndex.append(h)
+            flagCount += 1
+
+        if (abs(tempIndex[0]-airLineIndexPosFirst[0])+abs(tempIndex[1]-airLineIndexPosFirst[1])) < (abs(tempIndex[2]-airLineIndexPosFirst[0])+abs(tempIndex[3]-airLineIndexPosFirst[1])):
+            airLineFirstPosIndex.append(tempIndex[0])
+            airLineFirstPosIndex.append(tempIndex[1])
+            airLineEndPosIndex.append(tempIndex[2])
+            airLineEndPosIndex.append(tempIndex[3])
+        else:
+            airLineFirstPosIndex.append(tempIndex[2])
+            airLineFirstPosIndex.append(tempIndex[3])
+            airLineEndPosIndex.append(tempIndex[0])
+            airLineEndPosIndex.append(tempIndex[1])
+
+        return airLineAlpha,airLineBeta,airLineFirstPosIndex,airLineEndPosIndex
 
 def main():
-    api = PUBG('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJiMGVhNmM0MC1kNGQzLTAxMzYtYmQ3ZC03MzkyZGYzNjZhZTAiLCJpc3MiOiJnYW1lbG9ja2VyIiwiaWF0IjoxNTQzMzY1NDQxLCJwdWIiOiJibHVlaG9sZSIsInRpdGxlIjoicHViZyIsImFwcCI6InlvdXJpNDAxIn0.Z9i2twdF8yDkSPQ2DVjy1jbr7E5PbtiiB9n3UgfyKCg', Shard.PC_NA)
+    shardName = 'STEAM'
+    charaNameIndex = []
+    charaIdIndex = []
+    charaPositionXIndex = []
+    charaPositionYIndex = []
+    charaPositionZIndex = []
+    charaRankIndex = []
+    elapsedTimeIndex = []
+    playerDeadPositionIndex = []
+    killPlayerPositionIndex = []
+    playerKillCountIndex = []
+    playerLandingPositionIndex = []
+
+    zoneElapsedTimeIndex = []
+    safetyZonePositionXIndex = []
+    safetyZonePositionYIndex = []
+    safetyZoneRadiusIndex = []
+    poisonGasPositionXIndex = []
+    poisonGasPositionYIndex = []
+    poisonGasRadiusIndex = []
+    airLineAlpha = 0
+    airLineBeta = 0
+    airLineFirstPositionIndex = []
+    airLineEndPositionIndex = []
+    airLineFirstPos = []
+    matchDay = ""
+
+    api = PUBG('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJiMGVhNmM0MC1kNGQzLTAxMzYtYmQ3ZC03MzkyZGYzNjZhZTAiLCJpc3MiOiJnYW1lbG9ja2VyIiwiaWF0IjoxNTQzMzY1NDQxLCJwdWIiOiJibHVlaG9sZSIsInRpdGxlIjoicHViZyIsImFwcCI6InlvdXJpNDAxIn0.Z9i2twdF8yDkSPQ2DVjy1jbr7E5PbtiiB9n3UgfyKCg', Shard.STEAM)
     sample = api.samples().get()
-    matchId = sample.matches[0].id
-    match = api.matches().get(matchId)
-    asset = match.assets[0]
-    telemetry = api.telemetry(asset.url)
-    log_match_start = telemetry.events_from_type('LogMatchStart')
-    log_player_position = telemetry.events_from_type('LogPlayerPosition')
-    if not(log_match_start[0].map_name == "Range_Main"):
-        map = getMapImg(log_match_start[0].map_name)
-        player = getPlayersPositonInfo(map,log_player_position)
-        print(match.map_name)
-    else: print("this match is Range_Main")
+
+    for i in range(len(sample.matches)):
+        try:
+            matchId = sample.matches[i].id
+            match = api.matches().get(matchId)
+            asset = match.assets[0]
+            telemetry = api.telemetry(asset.url)
+            log_match_start = telemetry.events_from_type('LogMatchStart')
+            log_player_position = telemetry.events_from_type('LogPlayerPosition')
+
+            if not(log_match_start[0].map_name == "Range_Main"):
+                if not(log_match_start[0].is_event_mode):
+                    map = getMapImg(log_match_start[0].map_name)
+                    player = getPlayersPositonInfo(map,telemetry)
+                    matchDay = match.attributes["createdAt"]
+                    customMatchFlag = log_match_start[0].is_custom_game
+                    charaNameIndex,charaIdIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,charaRankIndex,elapsedTimeIndex = player.getAllPlayersAllInfo()
+                    playerDeadPositionIndex,killPlayerPositionIndex,playerKillCountIndex = player.getPlayerKillDeadPosition(charaIdIndex,charaRankIndex)
+                    playerLandingPositionIndex = player.getPlayerLandingPosition(charaIdIndex)
+                    instanceMatch = getMatchInfo(telemetry)
+                    zoneElapsedTimeIndex,safetyZonePositionXIndex,safetyZonePositionYIndex,safetyZoneRadiusIndex,poisonGasPositionXIndex,poisonGasPositionYIndex,poisonGasRadiusIndex = instanceMatch.getSafetyAndPoisonGasPosInfo()
+                    airLineAlpha,airLineBeta,airLineFirstPositionIndex,airLineEndPositionIndex = instanceMatch.getAirPlaneInfo(map)
+
+                    wpIndex = makePlayerWriteIndex(charaNameIndex,charaIdIndex,charaRankIndex,playerLandingPositionIndex,elapsedTimeIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,playerDeadPositionIndex,killPlayerPositionIndex,playerKillCountIndex,match.id)
+                    wmIndex = makeMatchWriteIndex(match.map_name,match.game_mode,match.id,matchDay,customMatchFlag,airLineAlpha,airLineBeta,airLineFirstPositionIndex,airLineEndPositionIndex,zoneElapsedTimeIndex,safetyZonePositionXIndex,safetyZonePositionYIndex,safetyZoneRadiusIndex,poisonGasPositionXIndex,poisonGasPositionYIndex,poisonGasRadiusIndex,shardName)
+
+                    print(str(i)+"/"+str(len(sample.matches))+"  :  "+match.map_name)
+
+                    writePlayerCsv(wpIndex,match.map_name,match.game_mode)
+                    writeMatchCsv(wmIndex)
+
+                else: print(str(i)+" : this match is EventMode")
+            else: print(str(i)+"/"+str(len(sample.matches))+" : this match is Range_Main")
+        except Exception as e:
+            print(e)
+
+def writePlayerCsv(index,mapName,gameMode):
+    gameModeName = ""
+
+    if gameMode == "solo":
+        gameModeName = "Solo"
+    elif gameMode == "duo":
+        gameModeName = "Duo"
+    elif gameMode == "squad":
+        gameModeName = "Squad"
+    elif gameMode == "solo-fpp":
+        gameModeName = "SoloFpp"
+    elif gameMode == "duo-fpp":
+        gameModeName = "DuoFpp"
+    elif gameMode == "squad-fpp":
+        gameModeName = "SquadFpp"
+
+    if mapName == "Erangel_Main":
+        csvName = "csv/playerErangel"+gameModeName+".csv"
+        with open(csvName,'a') as f:
+            writer = csv.writer(f,lineterminator='\n')
+            print("writePlayerInfo...")
+            writer.writerows(index)
+    elif mapName == "Desert_Main":
+        csvName = "csv/playerDesert"+gameModeName+".csv"
+        with open(csvName,'a') as f:
+            writer = csv.writer(f,lineterminator='\n')
+            print("writePlayerInfo...")
+            writer.writerows(index)
+    elif mapName == "Savage_Main":
+        csvName = "csv/playerSavage"+gameModeName+".csv"
+        with open(csvName,'a') as f:
+            writer = csv.writer(f,lineterminator='\n')
+            print("writePlayerInfo...")
+            writer.writerows(index)
+    elif mapName == 'DihorOtok_Main':
+        csvName = "csv/playerDihorOtok"+gameModeName+".csv"
+        with open(csvName,'a') as f:
+            writer = csv.writer(f,lineterminator='\n')
+            print("writePlayerInfo...")
+            writer.writerows(index)
+
+def writeMatchCsv(index):
+    print("writeMatchInfo...")
+    with open('match.csv','a') as g:
+        writer = csv.writer(g,lineterminator='\n')
+        writer.writerow(index)    
 
 def getMapImg(mapName):
     if mapName == "Erangel_Main":
@@ -160,11 +299,12 @@ def getMapImg(mapName):
     elif mapName == "Savage_Main":
         map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Sanhok_Main_No_Text_Med_Res.jpg')
     elif mapName == 'DihorOtok_Main':
-        map = cv2.imread(r'C:\Users\youri\Documents\api-assets\Assets\Maps\Vikendi_Main_High_Res.jpg')
+        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Vikendi_Main_High_Res.jpg')
     return map
 
-def makeWriteIndex(charaNameIndex,charaIdIndex,charaRankIndex,playerLandingPositionIndex,elapsedTimeIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,playerDeadPositionIndex,killPlayerPositionIndex,playerKillCountIndex,matchId):
+def makePlayerWriteIndex(charaNameIndex,charaIdIndex,charaRankIndex,playerLandingPositionIndex,elapsedTimeIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,playerDeadPositionIndex,killPlayerPositionIndex,playerKillCountIndex,matchId):
     writeIndex = []
+    print(len(charaNameIndex))
     for i in range(len(charaNameIndex)):
         charaPositionXStr = changeListToStr(charaPositionXIndex[i])
         charaPositionYStr = changeListToStr(charaPositionYIndex[i])
@@ -175,6 +315,21 @@ def makeWriteIndex(charaNameIndex,charaIdIndex,charaRankIndex,playerLandingPosit
         killPlayerPositionStr = changeListToStr(killPlayerPositionIndex[i])
 
         writeIndex.append([charaNameIndex[i],charaIdIndex[i],charaRankIndex[i],playerLandingPositionStr,elapsedTimeStr,charaPositionXStr,charaPositionYStr,charaPositionZStr,playerDeadPositionStr,killPlayerPositionStr,playerKillCountIndex[i],matchId])
+    return writeIndex
+
+def makeMatchWriteIndex(mapName,mode,matchId,matchDay,customMatchFlag,airLineAlpha,airLineBeta,airLineFirstPositionIndex,airLineEndPositionIndex,zoneElapsedTimeIndex,safetyZonePositionXIndex,safetyZonePositionYIndex,safetyZoneRadiusIndex,poisonGasPositionXIndex,poisonGasPositionYIndex,poisonGasRadiusIndex,shardName):
+    writeIndex = []
+    airLineFirstPositionStr = changeListToStr(airLineFirstPositionIndex)
+    airLineEndPositionStr = changeListToStr(airLineEndPositionIndex)
+    zoneElapsedTimeStr = changeListToStr(zoneElapsedTimeIndex)
+    safetyZonePositionXStr = changeListToStr(safetyZonePositionXIndex)
+    safetyZonePositionYStr = changeListToStr(safetyZonePositionYIndex)
+    safetyZoneRadiusStr = changeListToStr(safetyZoneRadiusIndex)
+    poisonGasPositionXStr = changeListToStr(poisonGasPositionXIndex)
+    poisonGasPositionYStr = changeListToStr(poisonGasPositionYIndex)
+    poisonGasRadiusStr = changeListToStr(poisonGasRadiusIndex)
+
+    writeIndex = [mapName,mode,matchId,matchDay,customMatchFlag,airLineAlpha,airLineBeta,airLineFirstPositionStr,airLineEndPositionStr,zoneElapsedTimeStr,safetyZonePositionXStr,safetyZonePositionYStr,safetyZoneRadiusStr,poisonGasPositionXStr,poisonGasPositionYStr,poisonGasRadiusStr,shardName]
     return writeIndex
 
 def changeListToStr(index):

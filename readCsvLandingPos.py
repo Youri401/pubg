@@ -132,6 +132,9 @@ class plotOnMap:
         
         return self.map
 
+    def plotPlayerHeatPosition(self,playerPos):
+        pass
+
 def main():
     airLineAlpha = 0
     airLineBeta = 0
@@ -140,32 +143,29 @@ def main():
     airLineEndPositionIndex = []
     tempListFirst = []
     tempListEnd = []
-    matchedListFirst = []
-    matchedListEnd = []
+    #matchedListFirst = []
+    #matchedListEnd = []
     playerMatchList = []
-    weakPlayerMatchList = []
-    #api = PUBG('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJiMGVhNmM0MC1kNGQzLTAxMzYtYmQ3ZC03MzkyZGYzNjZhZTAiLCJpc3MiOiJnYW1lbG9ja2VyIiwiaWF0IjoxNTQzMzY1NDQxLCJwdWIiOiJibHVlaG9sZSIsInRpdGxlIjoicHViZyIsImFwcCI6InlvdXJpNDAxIn0.Z9i2twdF8yDkSPQ2DVjy1jbr7E5PbtiiB9n3UgfyKCg', Shard.STEAM)
-    #players = api.players().filter(player_names=['youri401'])
-    #player = players[0]
-    #match = api.matches().get(player.matches[0].id)
-    #print(match.map_name)
-    #asset = match.assets[0]
-    #map = getMapImg(match.map_name)
+    #weakPlayerMatchList = []
+    matchedMatchIdList = []
+    
     api = PUBG('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJiMGVhNmM0MC1kNGQzLTAxMzYtYmQ3ZC03MzkyZGYzNjZhZTAiLCJpc3MiOiJnYW1lbG9ja2VyIiwiaWF0IjoxNTQzMzY1NDQxLCJwdWIiOiJibHVlaG9sZSIsInRpdGxlIjoicHViZyIsImFwcCI6InlvdXJpNDAxIn0.Z9i2twdF8yDkSPQ2DVjy1jbr7E5PbtiiB9n3UgfyKCg', Shard.STEAM)
     sample = api.samples().get()
-    matchId = sample.matches[0].id
+    matchId = sample.matches[1].id
     match = api.matches().get(matchId)
     asset = match.assets[0]
     telemetry = api.telemetry(asset.url)
     instance = getMatchInfo(telemetry)
+
     if not(match.map_name == "Range_Main"):
         map = getMapImg(match.map_name)
+        print(match.game_mode)
         h,w,c = map.shape
         limit = h/10
         print(match.map_name)
         airLineAlpha,airLineBeta,airLineFirstPositionIndex,airLineEndPositionIndex = instance.getAirPlaneInfo(map)
 
-        df = pd.read_csv('match.csv',header=0)
+        df = pd.read_csv('csv/match.csv',header=0)
         df_exact = df[df['mapName'] == match.map_name]
         df_exact = df[df['mode'] == match.game_mode]
         df_airLineFirstPos = df_exact['airLineFirstPos']
@@ -174,52 +174,50 @@ def main():
         airLineFirstList = df_airLineFirstPos.values.tolist()
         airLineEndList = df_airLineEndPos.values.tolist()
         matchIdList = df_matchId.values.tolist()
-        print('getAirLine')
-        df_player = getPlayerCsv(match.map_name)
+        df_player = getPlayerCsv(match.map_name,match.game_mode)
+
+        print(len(airLineFirstList))
 
         for i in range(len(airLineFirstList)):
             tempListFirst = airLineFirstList[i].split(',')
             tempListEnd = airLineEndList[i].split(',')
 
-            #if (int(tempListFirst[0]) < airLineFirstPositionIndex[0]+width and int(tempListFirst[0]) > airLineFirstPositionIndex[0]-width) and (int(tempListFirst[1]) < airLineFirstPositionIndex[1]+width and int(tempListFirst[1]) > airLineFirstPositionIndex[1]-width) and (int(tempListEnd[0]) < airLineEndPositionIndex[0]+width and int(tempListEnd[0]) > airLineEndPositionIndex[0]-width) and (int(tempListEnd[1]) < airLineEndPositionIndex[1]+width and int(tempListEnd[1]) > airLineEndPositionIndex[1]-width):
-                #matchedListFirst.append([int(tempListFirst[0]),int(tempListFirst[1])])
-                #matchedListEnd.append([int(tempListEnd[0]),int(tempListEnd[1])])
-        
             if (abs(int(tempListFirst[0])-airLineFirstPositionIndex[0])+abs(int(tempListFirst[1])-airLineFirstPositionIndex[1])+abs(int(tempListEnd[0])-airLineEndPositionIndex[0])+abs(int(tempListEnd[1])-airLineEndPositionIndex[1])) < limit:
-                matchedListFirst.append([int(tempListFirst[0]),int(tempListFirst[1])])
-                matchedListEnd.append([int(tempListEnd[0]),int(tempListEnd[1])])
+                #matchedListFirst.append([int(tempListFirst[0]),int(tempListFirst[1])])         #類似AirLine出力用
+                #matchedListEnd.append([int(tempListEnd[0]),int(tempListEnd[1])])
+                matchedMatchIdList.append(matchIdList[i])
 
-                df_player_exact = df_player[df_player['matchId'] == matchIdList[i]]
-                df_drop = df_player_exact[df_player_exact['ranking'] != '[]'].copy()
-                castData = df_drop['ranking'].astype(np.int64)
-                df_drop.loc[df_drop['ranking']!='[]','ranking'] = castData
 
-                df_top10player = df_drop[(df_drop['ranking'] != 0) & (df_drop['ranking'] < 10)]
-                df_weakPlayer = df_drop[(df_drop['ranking'] > 10) | (df_drop['ranking']== 0)]
-                df_top10PlayerLanding = df_top10player['landingPos']
-                df_weakPlayerLanding = df_weakPlayer['landingPos']
-                top10PlayerList = df_top10PlayerLanding.values.tolist()
-                weakPlayerList = df_weakPlayerLanding.values.tolist()
-                playerMatchList.extend(top10PlayerList)
-                weakPlayerMatchList.extend(weakPlayerList)
+        df_player_exact = df_player[df_player['matchId'].isin(matchedMatchIdList)]
+        df_drop = df_player_exact[df_player_exact['ranking'] != '[]'].copy()
+        castData = df_drop['ranking'].astype(np.int64)
+        df_drop.loc[df_drop['ranking']!='[]','ranking'] = castData
+
+        df_top10player = df_drop[(df_drop['ranking'] != 0) & (df_drop['ranking'] < 10)]
+        df_weakPlayer = df_drop[(df_drop['ranking'] > 10) | (df_drop['ranking']== 0)]
+        df_top10PlayerLanding = df_top10player['landingPos']
+        df_weakPlayerLanding = df_weakPlayer['landingPos']
+        top10PlayerList = df_top10PlayerLanding.values.tolist()
+        weakPlayerList = df_weakPlayerLanding.values.tolist()
+        #playerMatchList.extend(top10PlayerList)
+        #weakPlayerMatchList.extend(weakPlayerList)
     
-        print('Number of Match',len(matchedListFirst))
-        print(match.game_mode)
-        print('Number of Top 10 Player',len(playerMatchList))
+        print('Number of Match',len(matchedMatchIdList))
+        print('Number of Top 10 Player',len(top10PlayerList))
 
         pom = plotOnMap(map)
 
-        for i in range(len(playerMatchList)):
-            #map = pom.plotPlayerPosition(playerMatchList[i],(0,0,255))
-            map = pom.plotPlayerHeatMap(playerMatchList[i],0)
+        for i in range(len(top10PlayerList)):
+            map = pom.plotPlayerPosition(top10PlayerList[i],(0,0,255))
+            #map = pom.plotPlayerHeatMap(top10PlayerList[i],0)
     
-        for i in range(len(weakPlayerMatchList)):
-            #map = pom.plotPlayerPosition(weakPlayerMatchList[i],(255,0,0))
-            map = pom.plotPlayerHeatMap(weakPlayerMatchList[i],1)
+        for i in range(len(weakPlayerList)):
+            map = pom.plotPlayerPosition(weakPlayerList[i],(255,0,0))
+            #map = pom.plotPlayerHeatMap(weakPlayerList[i],1)
 
         map = pom.plotAirLine(airLineFirstPositionIndex,airLineEndPositionIndex,(0,0,255))
 
-        cv2.imwrite('output.jpg',map)
+        cv2.imwrite('output2.jpg',map)
     else:print('this is range map')
 
 
@@ -234,15 +232,34 @@ def getMapImg(mapName):
         map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Vikendi_Main_High_Res.jpg')
     return map
 
-def getPlayerCsv(mapName):
+def getPlayerCsv(mapName,gameMode):
+    gameModeName = ""
+
+    if gameMode == "solo":
+        gameModeName = "Solo"
+    elif gameMode == "duo":
+        gameModeName = "Duo"
+    elif gameMode == "squad":
+        gameModeName = "Squad"
+    elif gameMode == "solo-fpp":
+        gameModeName = "SoloFpp"
+    elif gameMode == "duo-fpp":
+        gameModeName = "DuoFpp"
+    elif gameMode == "squad-fpp":
+        gameModeName = "SquadFpp"
+
     if mapName == "Erangel_Main":
-        df_player = pd.read_csv('playerErangel.csv',header=0)
+        csvName = "csv/playerErangel"+gameModeName+".csv"
+        df_player = pd.read_csv(csvName,header=0)
     elif mapName == "Desert_Main":
-        df_player = pd.read_csv('playerDesert.csv',header=0)
+        csvName = "csv/playerDesert"+gameModeName+".csv"
+        df_player = pd.read_csv(csvName,header=0)
     elif mapName == "Savage_Main":
-        df_player = pd.read_csv('playerSavage.csv',header=0)
+        csvName = "csv/playerSavage"+gameModeName+".csv"
+        df_player = pd.read_csv(csvName,header=0)
     elif mapName == 'DihorOtok_Main':
-        df_player = pd.read_csv('playerDihorOtok.csv',header=0)
+        csvName = "csv/playerDihorOtok"+gameModeName+".csv"
+        df_player = pd.read_csv(csvName,header=0)
     return df_player
 
 if __name__ == '__main__':
