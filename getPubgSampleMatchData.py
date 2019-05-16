@@ -64,15 +64,6 @@ class getPlayersPositonInfo:
             playerKillCountIndex[charaRankIndex.index(1)] = len(lp) - killSum
         
         return playerDeadPositionIndex,playerKillPositionIndex,playerKillCountIndex
-        lp = logParachuteLanding
-        playerLandingPositionIndex = [[0 for i in range(3)]for j in range(len(charaIdIndex))]
-
-        for i in range(len(lp)):
-            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][0] = lp[i].character.location.x
-            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][1] = lp[i].character.location.y
-            playerLandingPositionIndex[charaIdIndex.index(lp[i].character.account_id)][2] = lp[i].character.location.z
-        
-        return playerLandingPositionIndex
 
     def plotAllPlayersAllPosition(self):
         for i in range(len(self.LogPlayerPosition)):
@@ -293,13 +284,13 @@ def writeMatchCsv(index):
 
 def getMapImg(mapName):
     if mapName == "Erangel_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Erangel_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Erangel_Main_High_Res.jpg')
     elif mapName == "Desert_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Miramar_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Miramar_Main_High_Res.jpg')
     elif mapName == "Savage_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Sanhok_Main_No_Text_Med_Res.jpg')
+        map = cv2.imread('Maps\Sanhok_Main_No_Text_Med_Res.jpg')
     elif mapName == 'DihorOtok_Main':
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Vikendi_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Vikendi_Main_High_Res.jpg')
     return map
 
 def makePlayerWriteIndex(charaNameIndex,charaIdIndex,charaRankIndex,playerLandingPositionIndex,elapsedTimeIndex,charaPositionXIndex,charaPositionYIndex,charaPositionZIndex,playerDeadPositionIndex,killPlayerPositionIndex,playerKillCountIndex,matchId):
