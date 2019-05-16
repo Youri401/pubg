@@ -1,7 +1,13 @@
-import pandas as pd
+import matplotlib.patches as mpatches
+from matplotlib import pyplot as plt
+import matplotlib.cm as cm
 from pubg_python import PUBG, Shard
+import pandas as pd
 import cv2
 import numpy as np
+from numpy import inf
+import time
+import pickle
 
 class getMatchInfo:
     def __init__(self,telemetry):
@@ -89,14 +95,14 @@ class getMatchInfo:
 
         return airLineAlpha,airLineBeta,airLineFirstPosIndex,airLineEndPosIndex
 
-class plotOnMap:
+class cv2PlotOnMap:
     def __init__(self,map):
         self.map = map
 
     def plotAirLine(self,firstPos,endPos,rgb):
-        cv2.line(self.map,(firstPos[0],firstPos[1]),(endPos[0],endPos[1]),rgb,10)
+        cv2.line(self.map,(firstPos[0],firstPos[1]),(endPos[0],endPos[1]),rgb,30)
         return self.map
-    
+
     def plotPlayerPosition(self,playerPos,bgr):
         h,w,c = self.map.shape
         position = playerPos.split(',')
@@ -132,8 +138,87 @@ class plotOnMap:
         
         return self.map
 
-    def plotPlayerHeatPosition(self,playerPos):
-        pass
+    def plotPlayerHeatPosition(self,map,playerPosList,color):
+        h,w,c = map.shape
+        map = cv2.cvtColor(map, cv2.COLOR_BGR2RGB)
+        plt.imshow(map)
+        playerXList = []
+        playerYList = []
+
+        for i in range(len(playerPosList)):
+            position = playerPosList[i].split(',')
+            playerXList.append(int(float(position[0])/100))
+            playerYList.append(int(float(position[1])/100))
+        plt.scatter(playerXList, playerYList, marker="o",alpha=0.03,c=color,s=3)
+        plt.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
+
+class matPlotOnMap():
+    def __init__(self,map):
+        self.h,self.w,self.c = map.shape
+        self.range = int(self.h/200)
+        self.map = cv2.cvtColor(map, cv2.COLOR_BGR2RGB)
+        #plt.imshow(self.map)
+        self.winPer = np.zeros((self.h,self.w))
+        self.playerCount = np.zeros((self.h,self.w))
+        self.tempList = [-1,0,1]
+
+    def plotPlayerHeatMap(self,playerPosList,color,weight):
+        playerXList = []
+        playerYList = []
+        for i in range(len(playerPosList)):
+            position = playerPosList[i].split(',')
+            playerXList.append(int(float(position[0])/100))
+            playerYList.append(int(float(position[1])/100))
+        plt.scatter(playerXList, playerYList, marker="o",alpha=weight,c=color,s=5)
+        plt.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
+
+    def plotAirLine(self,alpha,beta,color):
+        x = np.arange(0, self.h, 1)
+        y = alpha*x+beta
+        xy = np.concatenate([x, y])
+        xy = np.reshape(xy,(2,self.h))
+        xy = xy[:,np.all((xy<=self.h)& (xy >= 0),axis = 0)]
+        plt.plot(xy[0],xy[1],linestyle="dashed",label = 'airLine')
+        #plt.plot(xy[0],xy[1],color = color)
+        #plt.plot(xy[0],xy[1],label = 'airLine',color = 'red')
+        #plt.quiver(xy[0][int(xy[0].size-xy[0].size/10)],xy[1][int(xy[0].size-xy[0].size/10)],xy[0][xy[0].size-1]-xy[0][int(xy[0].size-xy[0].size/10)],xy[1][xy[0].size-1]-xy[1][int(xy[1].size-xy[0].size/10)],angles='xy',scale_units='xy',headwidth = 5,color = color)
+        plt.quiver(xy[0][int(xy[0].size-xy[0].size/10)],xy[1][int(xy[0].size-xy[0].size/10)],xy[0][xy[0].size-1]-xy[0][int(xy[0].size-xy[0].size/10)],xy[1][xy[0].size-1]-xy[1][int(xy[1].size-xy[0].size/10)],angles='xy',scale_units='xy',headwidth = 5,color = 'C0')
+    
+    def saveFigure(self,gameMode,mapName):
+        h,w,c = self.map.shape
+        plt.xlim(0,self.w)
+        plt.ylim(self.h,0)
+        plt.scatter([], [], marker="o",c='red',s=5,label = 'top10')
+        plt.scatter([], [], marker="o",c='blue',s=5,label = 'other')
+        #plt.plot([],[],label = 'AirLine',color = 'red')
+        #plt.plot([],[],label = 'similarAirLine',color = 'blue')
+        titleName = mapName + ' : '+gameMode
+        plt.title(titleName,loc = 'left',fontsize = 6)
+        plt.legend(loc='upper left',fontsize = 6).get_frame().set_alpha(0.4)
+        #plt.show()
+        plt.savefig('output.png', dpi = 500, transparent = True, bbox_inches = 'tight', pad_inches = 0)
+
+    def makeHeatIndex(self,playerPos,rank):
+        tempX = 0
+        tempY = 0
+
+        for i in range(len(playerPos)):
+            position = playerPos[i].split(',')
+            tempX = int(float(position[0])/100)
+            tempY = int(float(position[1])/100)
+            self.playerCount[tempX-self.range:tempX+self.range,tempY-self.range:tempY+self.range] +=1
+            self.winPer[tempX-self.range:tempX+self.range,tempY-self.range:tempY+self.range] += rank
+
+    def plotHeatMap(self):
+        heatMap = self.winPer/self.playerCount
+        heatMap[heatMap == inf] = 0
+        #xlist = np.where((self.playerCount != 0))[0]
+        #ylist = np.where((self.playerCount != 0))[1]
+        #valueList = heatMap[self.playerCount != 0]
+        sc = plt.scatter(self.tempList, self.tempList,marker="o",s=0.000001,c = self.tempList, vmin=-1, vmax=1, cmap=cm.seismic)
+        plt.colorbar(sc)
+        self.map[np.where(self.playerCount != 0)[1],np.where(self.playerCount != 0)[0]] = np.delete((np.array(cm.seismic((heatMap[np.where(self.playerCount != 0)]+1)/2))*255).astype(np.int64),3,1)
+        plt.imshow(self.map)
 
 def main():
     airLineAlpha = 0
@@ -143,11 +228,14 @@ def main():
     airLineEndPositionIndex = []
     tempListFirst = []
     tempListEnd = []
-    #matchedListFirst = []
-    #matchedListEnd = []
+    matchedListAlpha = []
+    matchedListBeta = []
     playerMatchList = []
     #weakPlayerMatchList = []
+    matchedAlphaList = []
+    matchedBetaList = []
     matchedMatchIdList = []
+    playerList = []
     
     api = PUBG('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJiMGVhNmM0MC1kNGQzLTAxMzYtYmQ3ZC03MzkyZGYzNjZhZTAiLCJpc3MiOiJnYW1lbG9ja2VyIiwiaWF0IjoxNTQzMzY1NDQxLCJwdWIiOiJibHVlaG9sZSIsInRpdGxlIjoicHViZyIsImFwcCI6InlvdXJpNDAxIn0.Z9i2twdF8yDkSPQ2DVjy1jbr7E5PbtiiB9n3UgfyKCg', Shard.STEAM)
     sample = api.samples().get()
@@ -164,18 +252,25 @@ def main():
         limit = h/10
         print(match.map_name)
         airLineAlpha,airLineBeta,airLineFirstPositionIndex,airLineEndPositionIndex = instance.getAirPlaneInfo(map)
-
-        df = pd.read_csv('csv/match.csv',header=0)
+        print(time.perf_counter())
+        df = pd.read_pickle('pickle/match.pickle')
+        #df = pd.read_csv('csv/match.csv',header=0)
         df_exact = df[df['mapName'] == match.map_name]
         df_exact = df[df['mode'] == match.game_mode]
         df_airLineFirstPos = df_exact['airLineFirstPos']
         df_airLineEndPos = df_exact['airLineEndPos']
         df_matchId = df_exact['matchId']
+        df_airLineAlpha = df_exact['airLineAlpha']
+        df_airLineBeta = df_exact['airLineBeta']
+
         airLineFirstList = df_airLineFirstPos.values.tolist()
         airLineEndList = df_airLineEndPos.values.tolist()
+        airLineAlphaList = df_airLineAlpha.values.tolist()
+        airLineBetaList = df_airLineBeta.values.tolist()
         matchIdList = df_matchId.values.tolist()
-        df_player = getPlayerCsv(match.map_name,match.game_mode)
-
+        df_player = getPlayerPickle(match.map_name,match.game_mode)
+        #df_player =getPlayerCsv(match.map_name,match.game_mode)
+        print('open player.csv:',time.perf_counter())
         print(len(airLineFirstList))
 
         for i in range(len(airLineFirstList)):
@@ -183,10 +278,9 @@ def main():
             tempListEnd = airLineEndList[i].split(',')
 
             if (abs(int(tempListFirst[0])-airLineFirstPositionIndex[0])+abs(int(tempListFirst[1])-airLineFirstPositionIndex[1])+abs(int(tempListEnd[0])-airLineEndPositionIndex[0])+abs(int(tempListEnd[1])-airLineEndPositionIndex[1])) < limit:
-                #matchedListFirst.append([int(tempListFirst[0]),int(tempListFirst[1])])         #類似AirLine出力用
-                #matchedListEnd.append([int(tempListEnd[0]),int(tempListEnd[1])])
+                matchedListAlpha.append(airLineAlphaList[i])         #類似AirLine出力用
+                matchedListBeta.append(airLineBetaList[i])
                 matchedMatchIdList.append(matchIdList[i])
-
 
         df_player_exact = df_player[df_player['matchId'].isin(matchedMatchIdList)]
         df_drop = df_player_exact[df_player_exact['ranking'] != '[]'].copy()
@@ -205,31 +299,35 @@ def main():
         print('Number of Match',len(matchedMatchIdList))
         print('Number of Top 10 Player',len(top10PlayerList))
 
-        pom = plotOnMap(map)
+        mpom = matPlotOnMap(map)
+        playerList.extend(weakPlayerList)
+        playerList.extend(top10PlayerList)
 
-        for i in range(len(top10PlayerList)):
-            map = pom.plotPlayerPosition(top10PlayerList[i],(0,0,255))
-            #map = pom.plotPlayerHeatMap(top10PlayerList[i],0)
-    
-        for i in range(len(weakPlayerList)):
-            map = pom.plotPlayerPosition(weakPlayerList[i],(255,0,0))
-            #map = pom.plotPlayerHeatMap(weakPlayerList[i],1)
+        #map = pom.plotAirLine(airLineFirstPositionIndex,airLineEndPositionIndex,(0,0,0))
+        #mpom.plotPlayerHeatMap(top10PlayerList,'red',0.1)
+        #mpom.plotPlayerHeatMap(weakPlayerList,'blue',0.04)
+        #mpom.plotAirLine(airLineAlpha,airLineBeta)
+        #mpom.makeHeatIndex(weakPlayerList,-1)
+        #mpom.makeHeatIndex(top10PlayerList,1)
+        #mpom.plotHeatMap()
+        for i in range(len(matchedListAlpha)):
+            mpom.plotAirLine(matchedListAlpha[i],matchedListBeta[i],'blue')
+        mpom.plotAirLine(airLineAlpha,airLineBeta,'red')
+        mpom.saveFigure(match.game_mode,getMapName(match.map_name))
 
-        map = pom.plotAirLine(airLineFirstPositionIndex,airLineEndPositionIndex,(0,0,255))
+        print('end',time.perf_counter())
 
-        cv2.imwrite('output2.jpg',map)
     else:print('this is range map')
-
 
 def getMapImg(mapName):
     if mapName == "Erangel_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Erangel_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Erangel_Main_High_Res.jpg')
     elif mapName == "Desert_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Miramar_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Miramar_Main_High_Res.jpg')
     elif mapName == "Savage_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Sanhok_Main_No_Text_Med_Res.jpg')
+        map = cv2.imread('Maps\Sanhok_Main_No_Text_Med_Res.jpg')
     elif mapName == 'DihorOtok_Main':
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Vikendi_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Vikendi_Main_High_Res.jpg')
     return map
 
 def getPlayerCsv(mapName,gameMode):
@@ -261,6 +359,48 @@ def getPlayerCsv(mapName,gameMode):
         csvName = "csv/playerDihorOtok"+gameModeName+".csv"
         df_player = pd.read_csv(csvName,header=0)
     return df_player
+
+def getMapName(mapName):
+    name = ''
+    if mapName == "Erangel_Main":
+        name = 'Erangel'
+    elif mapName == "Desert_Main":
+        name = 'Miramar'
+    elif mapName == "Savage_Main":
+        name = 'Sanhok'
+    elif mapName == 'DihorOtok_Main':
+        name = 'Vikendi'
+    return name
+
+def getPlayerPickle(mapName,gameMode):
+    gameModeName = ""
+
+    if gameMode == "solo":
+        gameModeName = "Solo"
+    elif gameMode == "duo":
+        gameModeName = "Duo"
+    elif gameMode == "squad":
+        gameModeName = "Squad"
+    elif gameMode == "solo-fpp":
+        gameModeName = "SoloFpp"
+    elif gameMode == "duo-fpp":
+        gameModeName = "DuoFpp"
+    elif gameMode == "squad-fpp":
+        gameModeName = "SquadFpp"
+
+    if mapName == "Erangel_Main":
+        csvName = "pickle/playerErangel"+gameModeName+".pickle"
+        df = pd.read_pickle(csvName)
+    elif mapName == "Desert_Main":
+        csvName = "pickle/playerDesert"+gameModeName+".pickle"
+        df = pd.read_pickle(csvName)
+    elif mapName == "Savage_Main":
+        csvName = "pickle/playerSavage"+gameModeName+".pickle"
+        df = pd.read_pickle(csvName)
+    elif mapName == 'DihorOtok_Main':
+        csvName = "pickle/playerDihorOtok"+gameModeName+".pickle"
+        df = pd.read_pickle(csvName)
+    return df
 
 if __name__ == '__main__':
     main()

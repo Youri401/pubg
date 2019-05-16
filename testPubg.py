@@ -1,10 +1,14 @@
-import pandas as pd
+import matplotlib.patches as mpatches
+from matplotlib import pyplot as plt
+import matplotlib.cm as cm
 from pubg_python import PUBG, Shard
+import pandas as pd
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib.patches as mpatches
+from numpy import inf
 import time
+import pickle
+import warnings
 
 class getMatchInfo:
     def __init__(self,telemetry):
@@ -151,14 +155,18 @@ class cv2PlotOnMap:
 
 class matPlotOnMap():
     def __init__(self,map):
+        self.h,self.w,self.c = map.shape
+        self.range = int(self.h/200)
         self.map = cv2.cvtColor(map, cv2.COLOR_BGR2RGB)
-        plt.imshow(self.map)
+        self.winPer = np.zeros((self.h,self.w))
+        self.winIndex = np.zeros((self.h,self.w))
+        self.loseIndex = np.zeros((self.h,self.w))
+        self.playerCount = np.zeros((self.h,self.w))
+        self.tempList = [-1,0,1]
 
     def plotPlayerHeatMap(self,playerPosList,color,weight):
-        h,w,c = self.map.shape
         playerXList = []
         playerYList = []
-
         for i in range(len(playerPosList)):
             position = playerPosList[i].split(',')
             playerXList.append(int(float(position[0])/100))
@@ -167,25 +175,69 @@ class matPlotOnMap():
         plt.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
 
     def plotAirLine(self,alpha,beta):
-        h,w,c = self.map.shape
-        x = np.arange(0, h, 1)
+        x = np.arange(0, self.h, 1)
         y = alpha*x+beta
         xy = np.concatenate([x, y])
-        xy = np.reshape(xy,(2,h))
-        xy = xy[:,np.all((xy<=h)& (xy >= 0),axis = 0)]
+        xy = np.reshape(xy,(2,self.h))
+        xy = xy[:,np.all((xy<=self.h)& (xy >= 0),axis = 0)]
         plt.plot(xy[0],xy[1],linestyle="dashed",label = 'airLine')
         plt.quiver(xy[0][int(xy[0].size-xy[0].size/10)],xy[1][int(xy[0].size-xy[0].size/10)],xy[0][xy[0].size-1]-xy[0][int(xy[0].size-xy[0].size/10)],xy[1][xy[0].size-1]-xy[1][int(xy[1].size-xy[0].size/10)],angles='xy',scale_units='xy',headwidth = 5,color = 'C0')
     
     def saveFigure(self,gameMode,mapName):
+        print('save heat map figure')
         h,w,c = self.map.shape
-        plt.xlim(0,w)
-        plt.ylim(h,0)
+        plt.xlim(0,self.w)
+        plt.ylim(self.h,0)
         plt.scatter([], [], marker="o",c='red',s=5,label = 'top10')
         plt.scatter([], [], marker="o",c='blue',s=5,label = 'other')
         titleName = mapName + ' : '+gameMode
         plt.title(titleName,loc = 'left',fontsize = 6)
         plt.legend(loc='upper left',fontsize = 6).get_frame().set_alpha(0.4)
-        plt.savefig('output.png', dpi = 500, transparent = True, bbox_inches = 'tight', pad_inches = 0)
+        plt.savefig('output.jpg', dpi = 500, transparent = True, bbox_inches = 'tight', pad_inches = 0)
+
+    def makeHeatIndex(self,playerPos,rank):
+        tempX = 0
+        tempY = 0
+
+        for i in range(len(playerPos)):
+            position = playerPos[i].split(',')
+            tempX = int(float(position[0])/100)
+            tempY = int(float(position[1])/100)
+            self.playerCount[tempX-self.range:tempX+self.range,tempY-self.range:tempY+self.range] +=1
+            if rank == 1:
+                self.winIndex[tempX-self.range:tempX+self.range,tempY-self.range:tempY+self.range] += rank
+            else:self.loseIndex[tempX-self.range:tempX+self.range,tempY-self.range:tempY+self.range] += rank
+
+    def plotHeatMap(self):
+        self.winPer = self.loseIndex + self.winIndex
+        warnings.filterwarnings('ignore')
+        heatMap = self.winPer/self.playerCount
+        heatMap[heatMap == inf] = 0
+        #xlist = np.where((self.playerCount != 0))[0]
+        #ylist = np.where((self.playerCount != 0))[1]
+        #valueList = heatMap[self.playerCount != 0]
+        sc = plt.scatter(self.tempList, self.tempList,marker="o",s=0.000001,c = self.tempList, vmin=-1, vmax=1, cmap=cm.seismic)
+        plt.colorbar(sc)
+        self.map[np.where(self.playerCount != 0)[1],np.where(self.playerCount != 0)[0]] = np.delete((np.array(cm.seismic((heatMap[np.where(self.playerCount != 0)]+1)/2))*255).astype(np.int64),3,1)
+        plt.imshow(self.map)
+
+    def getLandingPositionWinningPercentage(self,playerName,lp):
+        landX = 0
+        landY = 0
+        landXIndex = []
+        landYIndex = []
+
+        for i in range(len(lp)):
+            if lp[i].character.name == playerName:
+                landX = int(lp[i].character.location.x/100)
+                landY = int(lp[i].character.location.y/100)
+                landXIndex.append(int(lp[i].character.location.x/100))
+                landYIndex.append(int(lp[i].character.location.y/100))
+            
+        plt.scatter(landXIndex, landYIndex, marker="o",alpha=1,c='yellow',s=3,label = 'player')
+        print('player Landing Position is '+str(landX)+','+str(landY))
+        print('Landing Positions Number of top10 player is ',int(self.winIndex[landX,landY]))
+        print('Landing Positions Number of other player is ',int(abs(self.loseIndex[landX,landY])))
 
 def main():
     airLineAlpha = 0
@@ -195,7 +247,7 @@ def main():
     airLineEndPositionIndex = []
     tempListFirst = []
     tempListEnd = []
-    #matchedListFirst = []
+    #matchedListAlpha = []
     #matchedListEnd = []
     playerMatchList = []
     #weakPlayerMatchList = []
@@ -203,11 +255,17 @@ def main():
     matchedBetaList = []
     matchedMatchIdList = []
     playerList = []
-    
+
+    print("input player name")
+    name = input()
+    print("input last match (example: 0 is last match, 1 is 2d last match)")
+    matchNumber = input()
+    print()
+
     api = PUBG('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJiMGVhNmM0MC1kNGQzLTAxMzYtYmQ3ZC03MzkyZGYzNjZhZTAiLCJpc3MiOiJnYW1lbG9ja2VyIiwiaWF0IjoxNTQzMzY1NDQxLCJwdWIiOiJibHVlaG9sZSIsInRpdGxlIjoicHViZyIsImFwcCI6InlvdXJpNDAxIn0.Z9i2twdF8yDkSPQ2DVjy1jbr7E5PbtiiB9n3UgfyKCg', Shard.STEAM)
-    sample = api.samples().get()
-    matchId = sample.matches[1].id
-    match = api.matches().get(matchId)
+    players = api.players().filter(player_names=[name])
+    player = players[0]
+    match = api.matches().get(player.matches[int(matchNumber)].id)
     asset = match.assets[0]
     telemetry = api.telemetry(asset.url)
     instance = getMatchInfo(telemetry)
@@ -217,11 +275,9 @@ def main():
         print(match.game_mode)
         h,w,c = map.shape
         limit = h/10
-        print(match.map_name)
+        print(getMapName(match.map_name))
         airLineAlpha,airLineBeta,airLineFirstPositionIndex,airLineEndPositionIndex = instance.getAirPlaneInfo(map)
-        print(time.perf_counter())
-        df = pd.read_csv('csv/match.csv',header=0)
-        print(time.perf_counter())
+        df = pd.read_pickle('pickle/match.pickle')
         df_exact = df[df['mapName'] == match.map_name]
         df_exact = df[df['mode'] == match.game_mode]
         df_airLineFirstPos = df_exact['airLineFirstPos']
@@ -231,10 +287,7 @@ def main():
         airLineFirstList = df_airLineFirstPos.values.tolist()
         airLineEndList = df_airLineEndPos.values.tolist()
         matchIdList = df_matchId.values.tolist()
-        print(time.perf_counter())
-        df_player = getPlayerCsv(match.map_name,match.game_mode)
-        print(time.perf_counter())
-        print(len(airLineFirstList))
+        df_player = getPlayerPickle(match.map_name,match.game_mode)
 
         for i in range(len(airLineFirstList)):
             tempListFirst = airLineFirstList[i].split(',')
@@ -259,31 +312,36 @@ def main():
         #playerMatchList.extend(top10PlayerList)
         #weakPlayerMatchList.extend(weakPlayerList)
     
-        print('Number of Match',len(matchedMatchIdList))
-        print('Number of Top 10 Player',len(top10PlayerList))
+        print('Number of Similar Match',len(matchedMatchIdList))
 
         mpom = matPlotOnMap(map)
         playerList.extend(weakPlayerList)
         playerList.extend(top10PlayerList)
 
         #map = pom.plotAirLine(airLineFirstPositionIndex,airLineEndPositionIndex,(0,0,0))
-        mpom.plotPlayerHeatMap(top10PlayerList,'red',0.1)
-        mpom.plotPlayerHeatMap(weakPlayerList,'blue',0.03)
+        #mpom.plotPlayerHeatMap(top10PlayerList,'red',0.1)
+        #mpom.plotPlayerHeatMap(weakPlayerList,'blue',0.04)
+        #mpom.plotAirLine(airLineAlpha,airLineBeta)
+        mpom.makeHeatIndex(weakPlayerList,-1)
+        mpom.makeHeatIndex(top10PlayerList,1)
+        mpom.plotHeatMap()
         mpom.plotAirLine(airLineAlpha,airLineBeta)
+        mpom.getLandingPositionWinningPercentage(name,telemetry.events_from_type('LogParachuteLanding'))
         mpom.saveFigure(match.game_mode,getMapName(match.map_name))
-        print(time.perf_counter())
 
-    else:print('this is range map')
+        print('end')
+
+    else:print('this match is range map')
 
 def getMapImg(mapName):
     if mapName == "Erangel_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Erangel_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Erangel_Main_High_Res.jpg')
     elif mapName == "Desert_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Miramar_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Miramar_Main_High_Res.jpg')
     elif mapName == "Savage_Main":
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Sanhok_Main_No_Text_Med_Res.jpg')
+        map = cv2.imread('Maps\Sanhok_Main_No_Text_Med_Res.jpg')
     elif mapName == 'DihorOtok_Main':
-        map = cv2.imread(r'C:\Users\kengo\Documents\api-assets\Assets\Maps\Vikendi_Main_High_Res.jpg')
+        map = cv2.imread('Maps\Vikendi_Main_High_Res.jpg')
     return map
 
 def getPlayerCsv(mapName,gameMode):
@@ -327,6 +385,36 @@ def getMapName(mapName):
     elif mapName == 'DihorOtok_Main':
         name = 'Vikendi'
     return name
+
+def getPlayerPickle(mapName,gameMode):
+    gameModeName = ""
+
+    if gameMode == "solo":
+        gameModeName = "Solo"
+    elif gameMode == "duo":
+        gameModeName = "Duo"
+    elif gameMode == "squad":
+        gameModeName = "Squad"
+    elif gameMode == "solo-fpp":
+        gameModeName = "SoloFpp"
+    elif gameMode == "duo-fpp":
+        gameModeName = "DuoFpp"
+    elif gameMode == "squad-fpp":
+        gameModeName = "SquadFpp"
+
+    if mapName == "Erangel_Main":
+        csvName = "pickle/playerErangel"+gameModeName+".pickle"
+        df = pd.read_pickle(csvName)
+    elif mapName == "Desert_Main":
+        csvName = "pickle/playerDesert"+gameModeName+".pickle"
+        df = pd.read_pickle(csvName)
+    elif mapName == "Savage_Main":
+        csvName = "pickle/playerSavage"+gameModeName+".pickle"
+        df = pd.read_pickle(csvName)
+    elif mapName == 'DihorOtok_Main':
+        csvName = "pickle/playerDihorOtok"+gameModeName+".pickle"
+        df = pd.read_pickle(csvName)
+    return df
 
 if __name__ == '__main__':
     main()

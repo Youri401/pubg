@@ -11,6 +11,11 @@ telemetry = api.telemetry(asset.url)
 ppe = telemetry.events_from_type('LogPlayerPosition')
 lp = telemetry.events_from_type('LogPlayerKill')
 charaIdIndex = []
+lp = telemetry.events_from_type('LogParachuteLanding')
+for i in range(len(lp)):
+    if lp[i].character.name == 'youri401':
+        print(lp[i].character.location.x,lp[i].character.location.y)
+'''
 for i in range(len(ppe)):
     if not(ppe[i].elapsed_time == 0):
         if not(ppe[i].character.account_id in charaIdIndex):
@@ -32,3 +37,4 @@ print(charaIdIndex)
 print(playerDeadPositionIndex)
 print(playerKillPositionIndex)
 print(playerKillCountIndex)
+'''
